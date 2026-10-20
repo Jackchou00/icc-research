@@ -20,8 +20,16 @@ function readDrag(event) {
   }
 }
 
+const MIN_PANEL_WIDTHS = [250, 420, 230];
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
 export default function App() {
   const picker = useRef(null);
+  const columnsRef = useRef(null);
+  const resizeDrag = useRef(null);
   const [file, setFile] = useState(null);
   const [profile, setProfile] = useState(null);
   const [header, setHeader] = useState({});
@@ -29,6 +37,54 @@ export default function App() {
   const [staged, setStaged] = useState([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [columnWeights, setColumnWeights] = useState([0.85, 1.7, 0.8]);
+  const [activeHandle, setActiveHandle] = useState(null);
+
+  function applyResize(index, delta, widths) {
+    const next = [...widths];
+    if (index === 0) {
+      const pairWidth = widths[0] + widths[1];
+      next[0] = clamp(widths[0] + delta, MIN_PANEL_WIDTHS[0], pairWidth - MIN_PANEL_WIDTHS[1]);
+      next[1] = pairWidth - next[0];
+    } else {
+      const pairWidth = widths[1] + widths[2];
+      next[1] = clamp(widths[1] + delta, MIN_PANEL_WIDTHS[1], pairWidth - MIN_PANEL_WIDTHS[2]);
+      next[2] = pairWidth - next[1];
+    }
+    const total = next.reduce((sum, width) => sum + width, 0);
+    setColumnWeights(next.map((width) => width / total));
+  }
+
+  function beginResize(event, index) {
+    event.preventDefault();
+    const panels = [...columnsRef.current.querySelectorAll(":scope > .panel")];
+    resizeDrag.current = {
+      index,
+      startX: event.clientX,
+      widths: panels.map((panel) => panel.getBoundingClientRect().width),
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setActiveHandle(index);
+  }
+
+  function moveResize(event) {
+    const drag = resizeDrag.current;
+    if (drag) applyResize(drag.index, event.clientX - drag.startX, drag.widths);
+  }
+
+  function endResize() {
+    resizeDrag.current = null;
+    setActiveHandle(null);
+  }
+
+  function resizeWithKeyboard(event, index) {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const panels = [...columnsRef.current.querySelectorAll(":scope > .panel")];
+    const widths = panels.map((panel) => panel.getBoundingClientRect().width);
+    const step = event.shiftKey ? 32 : 12;
+    applyResize(index, event.key === "ArrowRight" ? step : -step, widths);
+  }
 
   async function openFile(nextFile) {
     if (!nextFile) return;
@@ -201,7 +257,15 @@ export default function App() {
 
       {error && <div className="error" role="alert">{error}</div>}
 
-      <section className="columns">
+      <section
+        ref={columnsRef}
+        className="columns"
+        style={{
+          "--header-track": `${columnWeights[0]}fr`,
+          "--table-track": `${columnWeights[1]}fr`,
+          "--staging-track": `${columnWeights[2]}fr`,
+        }}
+      >
         <section className="panel header-panel">
           <h1>Header</h1>
           <div className="field">
@@ -226,6 +290,18 @@ export default function App() {
             </div>
           ))}
         </section>
+        <div
+          className={`resize-handle${activeHandle === 0 ? " is-active" : ""}`}
+          role="separator"
+          tabIndex={0}
+          aria-label="Resize header and tag table"
+          aria-orientation="vertical"
+          onPointerDown={(event) => beginResize(event, 0)}
+          onPointerMove={moveResize}
+          onPointerUp={endResize}
+          onPointerCancel={endResize}
+          onKeyDown={(event) => resizeWithKeyboard(event, 0)}
+        />
 
         <section className="panel table-panel">
           <div className="panel-heading">
@@ -237,12 +313,32 @@ export default function App() {
             onDragOver={(event) => event.preventDefault()}
             onDrop={(event) => dropOnTable(event)}
           >
-            <table>
+            <table className="tag-table">
+              <colgroup>
+                <col className="drag-column" />
+                <col className="position-column" />
+                <col />
+                <col />
+                <col />
+                <col className="action-column" />
+              </colgroup>
               <thead><tr><th></th><th>#</th><th>Tag</th><th>Offset</th><th>Size</th><th></th></tr></thead>
               <tbody>{tags.map((tag, index) => renderTagRow(tag, index, "table"))}</tbody>
             </table>
           </div>
         </section>
+        <div
+          className={`resize-handle${activeHandle === 1 ? " is-active" : ""}`}
+          role="separator"
+          tabIndex={0}
+          aria-label="Resize tag table and staging"
+          aria-orientation="vertical"
+          onPointerDown={(event) => beginResize(event, 1)}
+          onPointerMove={moveResize}
+          onPointerUp={endResize}
+          onPointerCancel={endResize}
+          onKeyDown={(event) => resizeWithKeyboard(event, 1)}
+        />
 
         <section className="panel staging-panel">
           <div className="panel-heading">

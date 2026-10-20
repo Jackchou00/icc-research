@@ -88,7 +88,12 @@ button {
   display: grid;
   flex: 1;
   min-height: 0;
-  grid-template-columns: minmax(250px, 0.85fr) minmax(420px, 1.7fr) minmax(230px, 0.8fr);
+  grid-template-columns:
+    minmax(250px, var(--header-track, 0.85fr))
+    10px
+    minmax(420px, var(--table-track, 1.7fr))
+    10px
+    minmax(230px, var(--staging-track, 0.8fr));
 }
 
 .panel {
@@ -98,8 +103,30 @@ button {
   overflow: auto;
 }
 
-.panel + .panel {
-  border-left: 1px solid #e5e5e5;
+.resize-handle {
+  position: relative;
+  z-index: 2;
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+.resize-handle::after {
+  position: absolute;
+  inset: 0 auto 0 4px;
+  width: 1px;
+  background: #e5e5e5;
+  content: "";
+}
+
+.resize-handle:hover::after,
+.resize-handle.is-active::after {
+  background: #888;
+}
+
+.resize-handle:focus-visible {
+  outline: 1px solid #888;
+  outline-offset: -3px;
 }
 
 .panel h1 {
@@ -167,6 +194,27 @@ table {
   width: 100%;
   border-collapse: collapse;
   text-align: left;
+}
+
+.tag-table {
+  table-layout: fixed;
+}
+
+.tag-table .drag-column {
+  width: 20px;
+}
+
+.tag-table .position-column {
+  width: 30px;
+}
+
+.tag-table .action-column {
+  width: 30px;
+}
+
+.tag-table th:nth-child(n + 3):nth-child(-n + 5),
+.tag-table td:nth-child(n + 3):nth-child(-n + 5) {
+  text-align: center;
 }
 
 th {
@@ -270,7 +318,7 @@ td.action button:hover {
   transform: translateX(-50%);
 }
 
-@media (max-width: 900px) {
+@media (max-width: 960px) {
   body,
   .app {
     height: auto;
@@ -281,14 +329,17 @@ td.action button:hover {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .resize-handle {
+    display: none;
+  }
+
+  .columns > .panel:not(:first-child) {
+    border-top: 1px solid #e5e5e5;
+  }
+
   .panel {
     min-height: 240px;
     overflow: visible;
-  }
-
-  .panel + .panel {
-    border-top: 1px solid #e5e5e5;
-    border-left: 0;
   }
 
   .header-panel {
